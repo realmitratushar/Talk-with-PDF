@@ -16,6 +16,7 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 import streamlit as st
+st.set_page_config("Chat with multiple PDFs")
 
 @st.cache_data
 def get_pdf_text(pdf_docs):
@@ -69,7 +70,6 @@ def user_input(user_question):
 
 @st.cache_data
 def main():
-    st.set_page_config("Chat with multiple PDFs")
     st.header("Chat with multiple PDFs")
     user_question=st.text_input("Ask a question from the PDF files")
     if user_question:
