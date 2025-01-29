@@ -68,7 +68,6 @@ def user_input(user_question):
     print(response)
     st.write("Reply: ", response["output_text"])
 
-@st.cache_data
 def main():
     st.header("Chat with multiple PDFs")
     user_question=st.text_input("Ask a question from the PDF files")
