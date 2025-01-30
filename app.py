@@ -1,4 +1,4 @@
-import gradio as gr
+import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
@@ -13,8 +13,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Initialize session state
+if 'processed' not in st.session_state:
+    st.session_state.processed = False
+
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
+@st.cache_data
 def get_pdf_text(pdf_docs):
     text=""
     for pdf in pdf_docs:
@@ -23,16 +28,19 @@ def get_pdf_text(pdf_docs):
             text+= page.extract_text()
     return text
 
+@st.cache_data
 def get_text_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     chunks = text_splitter.split_text(text)
     return chunks
 
+@st.cache_data
 def get_vector_store(chunks):
     embeddings=GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vector_store = FAISS.from_texts(chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
+@st.cache_resource
 def get_conversation_chain():
     prompt_template = """
     Answer the question as detailed as possible from the provided context, make sure to provide all the details, if the answer is not in
@@ -51,6 +59,7 @@ def process_pdfs(pdf_docs):
     raw_text = get_pdf_text(pdf_docs)
     text_chunks = get_text_chunks(raw_text)
     get_vector_store(text_chunks)
+    st.session_state.processed = True
     return "PDFs processed successfully!"
 
 def user_input(user_question):
@@ -65,22 +74,27 @@ def user_input(user_question):
     return response["output_text"]
 
 def main():
-    with gr.Blocks() as demo:
-        gr.Markdown("# Chat with multiple PDFs")
-        
-        with gr.Tab("Upload PDFs"):
-            pdf_input = gr.File(file_count="multiple", label="Upload your PDF files")
-            process_btn = gr.Button("Process")
-            output = gr.Textbox(label="Status")
-            process_btn.click(fn=process_pdfs, inputs=pdf_input, outputs=output)
-            
-        with gr.Tab("Chat"):
-            question = gr.Textbox(label="Ask a question from the PDF files")
-            submit_btn = gr.Button("Submit")
-            answer = gr.Textbox(label="Reply")
-            submit_btn.click(fn=user_input, inputs=question, outputs=answer)
+    st.title("Chat with multiple PDFs")
     
-    demo.launch(share=True)
+    tab1, tab2 = st.tabs(["Upload PDFs", "Chat"])
+    
+    with tab1:
+        pdf_docs = st.file_uploader("Upload your PDF files", type=['pdf'], accept_multiple_files=True)
+        if st.button("Process"):
+            with st.spinner("Processing PDFs..."):
+                status = process_pdfs(pdf_docs)
+                st.success(status)
+    
+    with tab2:
+        if not st.session_state.processed:
+            st.warning("Please upload and process PDFs first")
+        else:
+            user_question = st.text_input("Ask a question from the PDF files")
+            if st.button("Submit"):
+                with st.spinner("Generating response..."):
+                    response = user_input(user_question)
+                    st.write(response)
 
 if __name__=="__main__":
     main()
+
